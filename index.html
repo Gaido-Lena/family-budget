@@ -205,8 +205,8 @@ const fmtD=(ym,day)=>day?String(day).padStart(2,'0')+'.'+ym.slice(5)+'.'+ym.slic
 const sum=a=>a.reduce((s,x)=>s+x,0);
 
 // ---------- Состояние и хранилище ----------
-const COLS=['checks','loans','bills','wishes','income','spend','pays','jobs'];
-const S={checks:{},loans:{},bills:{},wishes:{},income:{},spend:{},pays:{},jobs:{},settings:{savings:46494.21,rate:11.25,ws:80000,wa:30000,hs:50000,ha:50000}};
+const COLS=['checks','loans','bills','wishes','income','spend','pays','jobs','carry'];
+const S={checks:{},loans:{},bills:{},wishes:{},income:{},spend:{},pays:{},jobs:{},carry:{},settings:{savings:46494.21,rate:11.25,ws:80000,wa:30000,hs:50000,ha:50000}};
 const ui={tab:'ov',month:curYm,filter:'all',cyc:{w:null,h:null},scope:'m',cats:'p',pending:null,pendVal:'',payEdit:null,payVal:''};
 let sb=null,canWrite=true,started=false;
 function setSync(t,on){$('#syncTxt').textContent=t;$('#dot').className='dot'+(on?' on':'')}
@@ -390,8 +390,13 @@ function incParts(k,ym,x){
   return [mk('',null,+S.settings[k+(x==='A'?'a':'s')]||0)];
 }
 // Итоги цикла: факт (оплачено и потрачено) и прогноз (все плановые платежи).
+const cycLbl=id=>{const[y,x]=id.split(':');return (x==='A'?'аванс':'зарплата')+' '+MN[+y.slice(5)-1]+' '+y.slice(0,4)};
+const canNext=(k,id)=>{const l=cycList(k),i=l.findIndex(c=>c.id===id);return i>=0&&i<l.length-1};
 function cycStats(k,ym,x){
-  const c=cyc(k,ym,x),items=monthItems(ym,k).filter(i=>i.per===(x==='A'?'a':'s'));
+  const cid=ym+':'+x,c=cyc(k,ym,x),all=monthItems(ym,k).filter(i=>i.per===(x==='A'?'a':'s'));
+  const moved=all.filter(i=>!i.limit&&S.carry[i.key]&&S.carry[i.key].who===k).map(i=>({...i,carryId:i.key,to:S.carry[i.key].to}));
+  const debts=Object.entries(S.carry).filter(([,d])=>d.who===k&&d.to===cid).map(([id,d])=>({key:'debt__'+id,id:'debt',kind:'debt',name:d.name,sum:+d.sum||0,per:x==='A'?'a':'s',cat:d.cat,float:false,debt:true,from:d.from,carryId:id}));
+  const items=[...debts,...all.filter(i=>i.limit||!(S.carry[i.key]&&S.carry[i.key].who===k))];
   const ips=incParts(k,ym,x),baseSet=ips.some(p=>p.set),base=sum(ips.map(p=>p.sum));
   const exs=Object.entries(S.income).filter(([,i])=>i.who===k&&inR(i.date||(i.ym+'-01'),c));
   const sps=Object.entries(S.spend).filter(([,i])=>i.who===k&&inR(i.date||(i.ym+'-01'),c));
@@ -401,15 +406,15 @@ function cycStats(k,ym,x){
   const ex=sum(exs.map(([,i])=>+i.sum||0)),sp=sum(sps.filter(([,e])=>!limCats.has(e.cat||'Прочее')).map(([,e])=>+e.sum||0));
   const ov=i=>i.limit?Math.max(i.sum,i.spent):effSum(i);
   const plan=sum(items.map(ov)),paid=sum(items.map(i=>i.limit?i.spent:(S.checks[i.key]?effSum(i):0))),income=base+ex;
-  return {c,x,items,base,baseSet,ips,exs,sps,ex,sp,plan,paid,income,fact:income-paid-sp,forecast:income-plan-sp,missed:items.filter(i=>!i.limit&&!S.checks[i.key])};
+  return {c,x,items,moved,debt:sum(debts.map(i=>effSum(i))),debtOpen:sum(debts.filter(i=>!S.checks[i.key]).map(i=>effSum(i))),base,baseSet,ips,exs,sps,ex,sp,plan,paid,income,fact:income-paid-sp,forecast:income-plan-sp,missed:items.filter(i=>!i.limit&&!S.checks[i.key])};
 }
 // x не задан: весь месяц (оба цикла).
 function stats(ym,k,x){
   const parts=(x?[x]:['A','Z']).map(y=>cycStats(k,ym,y)),m=f=>sum(parts.map(f));
   return {parts,items:parts.flatMap(p=>p.items),exs:parts.flatMap(p=>p.exs),sps:parts.flatMap(p=>p.sps),base:m(p=>p.base),ex:m(p=>p.ex),sp:m(p=>p.sp),
-    income:m(p=>p.income),oblig:m(p=>p.plan),paid:m(p=>p.paid),free:m(p=>p.forecast),fact:m(p=>p.fact),missed:parts.flatMap(p=>p.missed)};
+    income:m(p=>p.income),oblig:m(p=>p.plan),paid:m(p=>p.paid),free:m(p=>p.forecast),fact:m(p=>p.fact),missed:parts.flatMap(p=>p.missed),moved:parts.flatMap(p=>p.moved),debt:m(p=>p.debtOpen)};
 }
-const both=(ym,x)=>{const a=stats(ym,'w',x),b=stats(ym,'h',x);return {w:a,h:b,income:a.income+b.income,oblig:a.oblig+b.oblig,sp:a.sp+b.sp,free:a.free+b.free,ex:a.ex+b.ex,paid:a.paid+b.paid,fact:a.fact+b.fact}};
+const both=(ym,x)=>{const a=stats(ym,'w',x),b=stats(ym,'h',x);return {w:a,h:b,income:a.income+b.income,oblig:a.oblig+b.oblig,sp:a.sp+b.sp,free:a.free+b.free,ex:a.ex+b.ex,paid:a.paid+b.paid,fact:a.fact+b.fact,debt:a.debt+b.debt}};
 // Сколько собрано на потребность из допдоходов.
 const funded=id=>sum(Object.values(S.income).filter(x=>x.alloc&&x.alloc.type==='wish'&&x.alloc.id===id).map(x=>+x.alloc.sum||0))+(S.wishes[id]?Math.max(0,+S.wishes[id].saved||0):0);
 const wishKind=w=>w.big?'big':(+w.sum<3000?'small':'mid');
@@ -471,7 +476,7 @@ function renderOverview(){
    $('#ovCats').innerHTML=rows.length?rows.map(([c,v])=>{const p=cs.tot?v/cs.tot*100:0;
      return `<div style="margin-bottom:12px"><div class="bar-top"><span>${esc(c)}</span><span class="num">${fmt(v)} <span class="mute small">· ${Math.round(p)}%</span></span></div><div class="meter" style="margin:0" role="img" aria-label="${esc(c)}: ${Math.round(p)}% расходов"><i style="width:${p}%"></i></div></div>`}).join('')+`<div class="row" style="border-top:2px solid var(--line)"><b>Всего</b><b class="num">${fmt(cs.tot)}</b></div>`:'<div class="empty">Расходов за этот период нет.</div>'}
   $('#ovKpi').innerHTML=kpi('Доход',fmt(t.income))+kpi('Обязательные',fmt(t.oblig))+kpi('Прочие расходы',fmt(t.sp))+kpi('Прогноз остатка',fmt(t.free),freeCol(t.free));
-  $('#ovFact').textContent=`Остаток по факту: ${fmt(t.fact)}. Оплачено платежей на ${fmt(t.paid)} из ${fmt(t.oblig)}.`;
+  $('#ovFact').textContent=`Остаток по факту: ${fmt(t.fact)}. Оплачено платежей на ${fmt(t.paid)} из ${fmt(t.oblig)}.${t.debt>0?` Из них долг с прошлых периодов к оплате: ${fmt(t.debt)}.`:''}`;
   $('#ovPeople').innerHTML=['w','h'].map(k=>{
     const st=t[k],cats={},lc=new Set(st.items.filter(i=>i.limit).map(i=>i.cat));st.items.forEach(i=>cats[i.cat]=(cats[i.cat]||0)+(i.limit?Math.max(i.sum,i.spent):i.sum));st.sps.forEach(([,i])=>{const c=i.cat||'Прочее';if(lc.has(c))return;cats[c]=(cats[c]||0)+(+i.sum||0)});
     return `<div class="panel who-${k}"><div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:4px 12px;align-items:baseline"><h3>${CARD[k]}</h3><span class="small mute">Доход <b class="num" style="color:var(--ink)">${fmt(st.income)}</b></span></div>
@@ -600,13 +605,16 @@ function renderPerson(k){
       return `<div class="lim"><div class="lh"><span>${esc(i.name)}${' · лимит'}</span><span class="num">${fmt(i.spent)} из ${fmt(i.sum)}</span></div><div class="meter${over?' bad':p>85?' warn':''}" role="img" aria-label="Потрачено ${Math.round(p)}% лимита"><i style="width:${p}%"></i></div><div class="small ${over?'':'mute'}"${over?' style="color:var(--bad)"':''}>${over?`Превышение ${fmt(-left)}`:`Осталось ${fmt(left)}`} · чеки вносите ниже в «Прочие расходы» с категорией «${esc(i.cat)}»</div></div>`;
     }
     const ck=S.checks[i.key],on=!!ck,nm=(i.float?'~ ':'')+i.name;
+    const cid0=ui.cyc[k];
     const known=on&&i.float&&ck.amount!=null;
-    let h=`<label class="chk${on?' done':''}"><input type="checkbox" data-key="${i.key}" data-ym="${i.key.slice(0,7)}"${on?' checked':''}${dis()}><span class="t">${esc(nm)}</span><span class="num">${known?fmt(effSum(i)):(i.float?'~ ':'')+fmt(i.sum)}</span></label>`;
+    let h=`<label class="chk${on?' done':''}"><input type="checkbox" data-key="${i.key}" data-ym="${i.debt?ym:i.key.slice(0,7)}"${on?' checked':''}${dis()}><span class="t">${i.debt?'<span class="chip bad" style="font-size:11px;margin-right:6px">долг</span>':''}${esc(nm)}${i.debt?`<span class="mute small" style="display:block">с прошлого периода: ${esc(cycLbl(i.from))}</span>`:''}</span><span class="num">${known?fmt(effSum(i)):(i.float?'~ ':'')+fmt(i.sum)}</span></label>`;
+    if(!on&&canNext(k,cid0))h+=`<div class="pend" style="padding-top:0"><button class="btn ghost" data-carry="${k}|${i.carryId||i.key}|${i.debt?'1':''}"${dis()}>Не хватило денег: ${i.debt?'перенести дальше':'перенести в следующий период'}</button></div>`;
     if(i.float&&on&&ui.pending!==i.key)h+=`<div class="pend"><span class="mute">План ${fmt(i.sum)}</span><button class="btn ghost" data-pend-edit="${i.key}"${dis()}>Изменить сумму</button></div>`;
     if(ui.pending===i.key)h+=`<div class="pend"><span>Сумма по квитанции, ₽</span><input type="number" id="pendIn" min="0" step="any" value="${ui.pendVal}"><button class="btn pri" data-pend-ok="${i.key}">Подтвердить</button><button class="btn ghost" data-pend-cancel="1">Отмена</button></div>`;
     return h;
   };
   root.querySelector('.pBills').innerHTML=st.items.length?st.items.map(row).join(''):'<div class="empty">В этом цикле платежей нет.</div>';
+  if(st.moved.length)root.querySelector('.pBills').innerHTML+='<div class="per">Перенесено в следующий период (долг)</div>'+st.moved.map(i=>`<div class="row"><span class="mute">${esc(i.name)} <span class="small">→ ${esc(cycLbl(i.to))}</span></span><span class="num mute">${fmt(i.sum)} <button class="btn ghost" data-uncarry="${i.carryId}"${dis()}>Вернуть</button></span></div>`).join('');
   // прочие расходы
   root.querySelector('.pSpend').innerHTML=st.sps.length?st.sps.sort((a,b)=>(b[1].date||'').localeCompare(a[1].date||'')).map(([id,i])=>`<div class="row"><span>${esc(i.name||i.cat||'Расход')} <span class="mute small">${esc(i.cat&&i.name?i.cat+' · ':'')}${ruDate(i.date)}</span></span><span class="num">${fmt(i.sum)} <button class="btn ghost" data-del-spend="${id}"${dis()}>Убрать</button></span></div>`).join(''):'<div class="empty">Расходов вне платежей пока нет. Добавьте покупку кнопкой ниже.</div>';
   fillTargets(root);
@@ -837,6 +845,11 @@ document.addEventListener('click',e=>{
   else if(d.payCancel){ui.payEdit=null;render()}
   else if(d.goCyc){const[k0,cid]=d.goCyc.split('|');ui.cyc[k0]=cid;ui.pending=null;ui.payEdit=null;showTab(k0);render();window.scrollTo({top:0})}
   else if(d.openCyc){const[k0,cid]=d.openCyc.split('|');ui.cyc[k0]=cid;ui.pending=null;ui.payEdit=null;render();window.scrollTo({top:0})}
+  else if(d.carry){const[k0,id0,isDebt]=d.carry.split('|'),cid=ui.cyc[k0],l=cycList(k0),i=l.findIndex(c=>c.id===cid);if(i<0||i>=l.length-1)return;const nx=l[i+1].id;
+    if(isDebt){const o=S.carry[id0];if(o)put('carry',id0,{...o,to:nx,at:Date.now()});return}
+    const[ym0,x0]=cid.split(':'),it=cycStats(k0,ym0,x0).items.find(q=>q.key===id0);if(!it)return;
+    put('carry',id0,{who:k0,name:it.name,sum:effSum(it),cat:it.cat||'',from:cid,to:nx,at:Date.now()})}
+  else if(d.uncarry){del('carry',d.uncarry)}
   else if(d.skipCyc){const[,sid]=d.skipCyc.split('|');put('checks',sid,{skip:true,at:Date.now()})}
   else if(d.edLoan){loanFormFill(d.edLoan);const det=$('#loanDet');det.open=true;if(det.scrollIntoView)det.scrollIntoView({behavior:'smooth',block:'center'})}
   else if(d.edBill){billFormFill(d.edBill);const det=$('#billDet');det.open=true;if(det.scrollIntoView)det.scrollIntoView({behavior:'smooth',block:'center'})}
@@ -858,6 +871,7 @@ document.addEventListener('change',e=>{
   if(t.classList.contains('monthSel')){ui.month=t.value;render()}
   else if(t.classList.contains('cycSel')){ui.cyc[t.dataset.who]=t.value;ui.pending=null;ui.payEdit=null;render()}
   else if(t.dataset.key){
+    if(t.dataset.key.startsWith('debt__')){const id0=t.dataset.key.slice(6);if(!t.checked){del('checks',t.dataset.key);del('checks',id0)}else{put('checks',id0,{ym:id0.slice(0,7),key:id0,at:Date.now(),debt:true});put('checks',t.dataset.key,{ym:t.dataset.ym,key:t.dataset.key,at:Date.now()})}return}
     if(!t.checked){del('checks',t.dataset.key);return}
     const k0=t.dataset.key,item=['w','h'].flatMap(w=>monthItems(k0.slice(0,7),w)).find(i=>i.key===k0);
     if(item&&item.float){ui.pending=k0;ui.pendVal=item.sum;t.checked=false;render();const p=document.getElementById('pendIn');if(p)p.focus();return}
