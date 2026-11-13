@@ -258,11 +258,13 @@ async function initStore(){
   });
   $('#logoutBtn').addEventListener('click',()=>sb.auth.signOut());
   sb.auth.onAuthStateChange((ev,s)=>{
-    if(s){lg.hidden=true;$('#logoutBtn').hidden=false;startData()}
+    // Нельзя обращаться к базе прямо внутри этого обработчика: библиотека держит блокировку входа и запрос зависает.
+    if(s){lg.hidden=true;$('#logoutBtn').hidden=false;setTimeout(startData,0)}
     else{lg.hidden=false;$('#logoutBtn').hidden=true;started=false;setSync('Войдите, чтобы увидеть данные',false)}
   });
   const {data:{session}}=await sb.auth.getSession();
   if(!session){lg.hidden=false;setSync('Войдите, чтобы увидеть данные',false)}
+  setTimeout(()=>{if(session&&!started)startData()},1500);
 }
 
 // ---------- Финансовая логика ----------
