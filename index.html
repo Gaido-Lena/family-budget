@@ -353,7 +353,8 @@ function cyc(k,ym,x){
   const pm=addM(ym,-1);
   return {start:payDate(pm,P.a),end:addDay(sal,-1),pay:payDate(pm,P.a),nominal:nominalDate(pm,P.a)};
 }
-const cycList=k=>{const o=[];MONTHS.forEach(m=>['A','Z'].forEach(x=>o.push({id:m+':'+x,ym:m,x,...cyc(k,m,x)})));return o};
+const hidCyc=(m,x)=>m+':'+x<'2026-11:Z'; // учёт ведётся с 13 ноября 2026
+const cycList=k=>{const o=[];MONTHS.forEach(m=>['A','Z'].filter(x=>!hidCyc(m,x)).forEach(x=>o.push({id:m+':'+x,ym:m,x,...cyc(k,m,x)})));return o};
 const curCycle=k=>{const l=cycList(k);return l.find(c=>c.start<=todayIso&&todayIso<=c.end)||l[0]};
 // Что осталось неотмеченным в прошлом цикле (перед автоматическим переключением на новый).
 function prevCycleInfo(k){
@@ -410,7 +411,7 @@ function cycStats(k,ym,x){
 }
 // x не задан: весь месяц (оба цикла).
 function stats(ym,k,x){
-  const parts=(x?[x]:['A','Z']).map(y=>cycStats(k,ym,y)),m=f=>sum(parts.map(f));
+  const parts=(x?[x]:['A','Z']).filter(y=>!hidCyc(ym,y)).map(y=>cycStats(k,ym,y)),m=f=>sum(parts.map(f));
   return {parts,items:parts.flatMap(p=>p.items),exs:parts.flatMap(p=>p.exs),sps:parts.flatMap(p=>p.sps),base:m(p=>p.base),ex:m(p=>p.ex),sp:m(p=>p.sp),
     income:m(p=>p.income),oblig:m(p=>p.plan),paid:m(p=>p.paid),free:m(p=>p.forecast),fact:m(p=>p.fact),missed:parts.flatMap(p=>p.missed),moved:parts.flatMap(p=>p.moved),debt:m(p=>p.debtOpen)};
 }
@@ -523,7 +524,7 @@ const ruShort=iso=>+iso.slice(8)+' '+MS[+iso.slice(5,7)-1];
 const wdOf=iso=>WD[new Date(iso+'T00:00:00Z').getUTCDay()];
 const ruDate=iso=>iso?iso.split('-').reverse().join('.'):'';
 function buildPerson(k){
-  const opts=MONTHS.map(m=>`<optgroup label="${monthName(m)}">`+['A','Z'].map(x=>{const c=cyc(k,m,x);return `<option value="${m}:${x}">${x==='A'?'Аванс':'Зарплата'} · ${ruShort(c.start)} – ${ruShort(c.end)}</option>`}).join('')+'</optgroup>').join('');
+  const opts=MONTHS.map(m=>`<optgroup label="${monthName(m)}">`+['A','Z'].filter(x=>!hidCyc(m,x)).map(x=>{const c=cyc(k,m,x);return `<option value="${m}:${x}">${x==='A'?'Аванс':'Зарплата'} · ${ruShort(c.start)} – ${ruShort(c.end)}</option>`}).join('')+'</optgroup>').join('');
   $('#tab-'+k).innerHTML=`
   <div class="panel who-${k}">
     <div class="h2row"><h2>${CARD[k]}</h2><select class="cycSel" data-who="${k}" aria-label="Цикл">${opts}</select></div>
