@@ -608,7 +608,10 @@ function renderPerson(k){
     const cid0=ui.cyc[k];
     const known=on&&i.float&&ck.amount!=null;
     let h=`<label class="chk${on?' done':''}"><input type="checkbox" data-key="${i.key}" data-ym="${i.debt?ym:i.key.slice(0,7)}"${on?' checked':''}${dis()}><span class="t">${i.debt?'<span class="chip bad" style="font-size:11px;margin-right:6px">долг</span>':''}${esc(nm)}${i.debt?`<span class="mute small" style="display:block">с прошлого периода: ${esc(cycLbl(i.from))}</span>`:''}</span><span class="num">${known?fmt(effSum(i)):(i.float?'~ ':'')+fmt(i.sum)}</span></label>`;
-    if(!on&&canNext(k,cid0))h+=`<div class="pend" style="padding-top:0"><button class="btn ghost" data-carry="${k}|${i.carryId||i.key}|${i.debt?'1':''}"${dis()}>Не хватило денег: ${i.debt?'перенести дальше':'перенести в следующий период'}</button></div>`;
+    if(!on&&canNext(k,cid0)){const ck0=k+'|'+(i.carryId||i.key)+'|'+(i.debt?'1':'');
+      if(ui.carryOpen===ck0){const l=cycList(k),ix=l.findIndex(c=>c.id===cid0),opts=l.slice(ix+1,ix+9);if(!opts.some(c=>c.id===ui.carryTo))ui.carryTo=opts[0].id;
+        h+=`<div class="pend" style="padding-top:0"><span>Перенести на</span><select id="carryTo">${opts.map(c=>`<option value="${c.id}"${c.id===ui.carryTo?' selected':''}>${esc(cycLbl(c.id))} · ${ruShort(c.pay)}</option>`).join('')}</select><button class="btn pri" data-carry-ok="${ck0}">Перенести</button><button class="btn ghost" data-carry-cancel="1">Отмена</button></div>`}
+      else h+=`<div class="pend" style="padding-top:0"><button class="btn ghost" data-carry-open="${ck0}"${dis()}>Не хватило денег: ${i.debt?'перенести дальше':'перенести долгом'}</button></div>`}
     if(i.float&&on&&ui.pending!==i.key)h+=`<div class="pend"><span class="mute">План ${fmt(i.sum)}</span><button class="btn ghost" data-pend-edit="${i.key}"${dis()}>Изменить сумму</button></div>`;
     if(ui.pending===i.key)h+=`<div class="pend"><span>Сумма по квитанции, ₽</span><input type="number" id="pendIn" min="0" step="any" value="${ui.pendVal}"><button class="btn pri" data-pend-ok="${i.key}">Подтвердить</button><button class="btn ghost" data-pend-cancel="1">Отмена</button></div>`;
     return h;
@@ -845,7 +848,9 @@ document.addEventListener('click',e=>{
   else if(d.payCancel){ui.payEdit=null;render()}
   else if(d.goCyc){const[k0,cid]=d.goCyc.split('|');ui.cyc[k0]=cid;ui.pending=null;ui.payEdit=null;showTab(k0);render();window.scrollTo({top:0})}
   else if(d.openCyc){const[k0,cid]=d.openCyc.split('|');ui.cyc[k0]=cid;ui.pending=null;ui.payEdit=null;render();window.scrollTo({top:0})}
-  else if(d.carry){const[k0,id0,isDebt]=d.carry.split('|'),cid=ui.cyc[k0],l=cycList(k0),i=l.findIndex(c=>c.id===cid);if(i<0||i>=l.length-1)return;const nx=l[i+1].id;
+  else if(d.carryOpen){ui.carryOpen=d.carryOpen;ui.carryTo=null;render()}
+  else if(d.carryCancel){ui.carryOpen=null;render()}
+  else if(d.carryOk){ui.carryOpen=null;const[k0,id0,isDebt]=d.carryOk.split('|'),cid=ui.cyc[k0],l=cycList(k0),i=l.findIndex(c=>c.id===cid),nx=ui.carryTo;if(i<0||!nx||l.findIndex(c=>c.id===nx)<=i){render();return}
     if(isDebt){const o=S.carry[id0];if(o)put('carry',id0,{...o,to:nx,at:Date.now()});return}
     const[ym0,x0]=cid.split(':'),it=cycStats(k0,ym0,x0).items.find(q=>q.key===id0);if(!it)return;
     put('carry',id0,{who:k0,name:it.name,sum:effSum(it),cat:it.cat||'',from:cid,to:nx,at:Date.now()})}
@@ -869,6 +874,7 @@ document.addEventListener('click',e=>{
 document.addEventListener('change',e=>{
   const t=e.target;
   if(t.classList.contains('monthSel')){ui.month=t.value;render()}
+  else if(t.id==='carryTo'){ui.carryTo=t.value}
   else if(t.classList.contains('cycSel')){ui.cyc[t.dataset.who]=t.value;ui.pending=null;ui.payEdit=null;render()}
   else if(t.dataset.key){
     if(t.dataset.key.startsWith('debt__')){const id0=t.dataset.key.slice(6);if(!t.checked){del('checks',t.dataset.key);del('checks',id0)}else{put('checks',id0,{ym:id0.slice(0,7),key:id0,at:Date.now(),debt:true});put('checks',t.dataset.key,{ym:t.dataset.ym,key:t.dataset.key,at:Date.now()})}return}
