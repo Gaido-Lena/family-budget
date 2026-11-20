@@ -205,8 +205,8 @@ const fmtD=(ym,day)=>day?String(day).padStart(2,'0')+'.'+ym.slice(5)+'.'+ym.slic
 const sum=a=>a.reduce((s,x)=>s+x,0);
 
 // ---------- Состояние и хранилище ----------
-const COLS=['checks','loans','bills','wishes','income','spend','pays','jobs','carry'];
-const S={checks:{},loans:{},bills:{},wishes:{},income:{},spend:{},pays:{},jobs:{},carry:{},settings:{savings:46494.21,rate:11.25,ws:80000,wa:30000,hs:50000,ha:50000}};
+const COLS=['checks','loans','bills','wishes','income','spend','pays','jobs','carry','xfer'];
+const S={checks:{},loans:{},bills:{},wishes:{},income:{},spend:{},pays:{},jobs:{},carry:{},xfer:{},settings:{savings:46494.21,rate:11.25,ws:80000,wa:30000,hs:50000,ha:50000}};
 const ui={tab:'ov',month:curYm,filter:'all',cyc:{w:null,h:null},scope:'m',cats:'p',pending:null,pendVal:'',restVal:{},payEdit:null,payVal:''};
 let sb=null,canWrite=true,started=false;
 function setSync(t,on){$('#syncTxt').textContent=t;$('#dot').className='dot'+(on?' on':'')}
@@ -413,10 +413,11 @@ function cycStats(k,ym,x){
   // Лимитные платежи (например, продукты): чеки той же категории считаются внутри лимита, а не сверх него.
   const lim=items.filter(i=>i.limit),limCats=new Set(lim.map(i=>i.cat));
   lim.forEach(i=>{i.spent=sum(sps.filter(([,e])=>(e.cat||'Прочее')===i.cat).map(([,e])=>+e.sum||0))});
+  const xs=Object.entries(S.xfer).filter(([,t])=>(t.from===k||t.to===k)&&inR(t.date,c)),xin=sum(xs.filter(([,t])=>t.to===k).map(([,t])=>+t.sum||0)),xout=sum(xs.filter(([,t])=>t.from===k).map(([,t])=>+t.sum||0));
   const ex=sum(exs.map(([,i])=>+i.sum||0)),sp=sum(sps.filter(([,e])=>!limCats.has(e.cat||'Прочее')).map(([,e])=>+e.sum||0));
   const ov=i=>i.limit?Math.max(i.sum,i.spent):effSum(i);
   const plan=sum(items.map(ov)),paid=sum(items.map(i=>i.limit?i.spent:(S.checks[i.key]?effSum(i):0))),income=base+ex;
-  return {c,x,items,moved,debt:sum(debts.map(i=>effSum(i))),debtOpen:sum(debts.filter(i=>!S.checks[i.key]).map(i=>effSum(i))),base,baseSet,ips,exs,sps,ex,sp,plan,paid,income,fact:income-paid-sp,forecast:income-plan-sp,missed:items.filter(i=>!i.limit&&!S.checks[i.key])};
+  return {c,x,items,moved,debt:sum(debts.map(i=>effSum(i))),debtOpen:sum(debts.filter(i=>!S.checks[i.key]).map(i=>effSum(i))),base,baseSet,ips,exs,sps,ex,sp,plan,paid,income,xs,xin,xout,fact:income-paid-sp+xin-xout,forecast:income-plan-sp+xin-xout,missed:items.filter(i=>!i.limit&&!S.checks[i.key])};
 }
 // x не задан: весь месяц (оба цикла).
 function stats(ym,k,x){
@@ -564,6 +565,18 @@ function buildPerson(k){
       <button class="btn pri full" type="submit"${dis()}>Добавить доход</button>
     </form>
   </div>
+  <div class="panel">
+    <h2>Переводы между картами</h2>
+    <p class="hint" style="margin:0 0 6px">Не считаются ни доходом, ни расходом семьи: деньги просто переходят с одной карты на другую.</p>
+    <div class="pXfer"></div>
+    <form class="add xferForm" data-who="${k}">
+      <label class="f">Дата<input type="date" class="xDate" required></label>
+      <label class="f">Куда<select class="xDir"><option value="out">С этой карты на карту ${k==='w'?'Арса':'Лены'}</option><option value="in">С карты ${k==='w'?'Арса':'Лены'} на эту</option></select></label>
+      <label class="f">Сумма, ₽<input type="number" class="xSum" min="1" step="any" required></label>
+      <label class="f">Комментарий<input type="text" class="xName" placeholder="На продукты" maxlength="60"></label>
+      <button class="btn pri full" type="submit"${dis()}>Добавить перевод</button>
+    </form>
+  </div>
   <div class="panel"><h2>Обязательные платежи цикла</h2><div class="pBills"></div></div>
   <div class="panel">
     <h2>Прочие расходы</h2>
@@ -644,12 +657,13 @@ function renderPerson(k){
   root.querySelector('.pBills').innerHTML=st.items.length?st.items.map(row).join(''):'<div class="empty">В этом цикле платежей нет.</div>';
   if(st.moved.length)root.querySelector('.pBills').innerHTML+='<div class="per">Перенесено в следующий период (долг)</div>'+st.moved.map(i=>`<div class="row"><span class="mute">${esc(i.name)} <span class="small">→ ${esc(cycLbl(i.to))}</span></span><span class="num mute">${fmt(i.sum)} <button class="btn ghost" data-uncarry="${i.carryId}"${dis()}>Вернуть</button></span></div>`).join('');
   // прочие расходы
+  root.querySelector('.pXfer').innerHTML=st.xs.sort((a,b)=>(b[1].date||'').localeCompare(a[1].date||'')).map(([id,t])=>{const out=t.from===k,oth=out?t.to:t.from;return `<div class="row"><span>${out?'На карту':'С карты'} ${out?(oth==='w'?'Лены':'Арса'):(oth==='w'?'Лены':'Арса')} <span class="mute small">${esc(t.note?t.note+' · ':'')}${ruDate(t.date)}</span></span><span class="num">${out?'−':'+'}${fmt(t.sum)} <button class="btn ghost" data-del-xfer="${id}"${dis()}>Убрать</button></span></div>`}).join('')||'<div class="empty">Переводов в этом цикле нет.</div>';
   root.querySelector('.pSpend').innerHTML=st.sps.length?st.sps.sort((a,b)=>(b[1].date||'').localeCompare(a[1].date||'')).map(([id,i])=>`<div class="row"><span>${esc(i.name||i.cat||'Расход')} <span class="mute small">${esc(i.cat&&i.name?i.cat+' · ':'')}${ruDate(i.date)}</span></span><span class="num">${fmt(i.sum)} <button class="btn ghost" data-del-spend="${id}"${dis()}>Убрать</button></span></div>`).join(''):'<div class="empty">Расходов вне платежей пока нет. Добавьте покупку кнопкой ниже.</div>';
   fillTargets(root);
   if(root.dataset.cyc!==ui.cyc[k]){
     root.dataset.cyc=ui.cyc[k];
     const d0=now?todayIso:c.start;
-    root.querySelector('.sDate').value=d0;root.querySelector('.iDate').value=d0;
+    root.querySelector('.sDate').value=d0;root.querySelector('.xDate').value=d0;root.querySelector('.xDate').min=c.start;root.querySelector('.xDate').max=c.end;root.querySelector('.iDate').value=d0;
     root.querySelector('.sDate').min=c.start;root.querySelector('.sDate').max=c.end;root.querySelector('.iDate').min=c.start;root.querySelector('.iDate').max=c.end;
   }
 }
@@ -894,6 +908,7 @@ document.addEventListener('click',e=>{
   else if(d.delBill){if(!arm(t))return;del('bills',d.delBill)}
   else if(d.delInc)del('income',d.delInc);
   else if(d.delSpend)del('spend',d.delSpend);
+  else if(d.delXfer)del('xfer',d.delXfer);
   else if(d.wishBuy){const w=cl(S.wishes[d.wishBuy]);w.status='bought';put('wishes',d.wishBuy,w)}
   else if(d.wishReset){const w=cl(S.wishes[d.wishReset]);w.saved=0;put('wishes',d.wishReset,w)}
   else if(d.wishBack){const w=cl(S.wishes[d.wishBack]);w.status='plan';put('wishes',d.wishBack,w)}
@@ -927,6 +942,10 @@ document.addEventListener('submit',e=>{
     put('income',newId(),doc);
     if(doc.alloc&&doc.alloc.type==='wish'){const w=S.wishes[doc.alloc.id];if(w&&w.status!=='bought'&&funded(doc.alloc.id)>=(+w.sum||0)){const w2=cl(w);w2.status='bought';put('wishes',doc.alloc.id,w2)}}
     f.querySelector('.iName').value='';f.querySelector('.iSum').value='';f.querySelector('.iAlloc').value='';f.querySelector('.iTarget').value='';
+  }else if(f.classList.contains('xferForm')){
+    const date=f.querySelector('.xDate').value,v=+f.querySelector('.xSum').value,me=f.dataset.who,ot=me==='w'?'h':'w',out=f.querySelector('.xDir').value==='out';if(!date||!(v>0))return;
+    put('xfer',newId(),{ym:date.slice(0,7),date,from:out?me:ot,to:out?ot:me,sum:v,note:f.querySelector('.xName').value.trim(),at:Date.now()});
+    f.querySelector('.xSum').value='';f.querySelector('.xName').value='';
   }else if(f.classList.contains('spendForm')){
     const date=f.querySelector('.sDate').value,s=+f.querySelector('.sSum').value;if(!date||!(s>0))return;
     put('spend',newId(),{ym:date.slice(0,7),who:f.dataset.who,date,cat:f.querySelector('.sCat').value.trim(),name:f.querySelector('.sName').value.trim(),sum:s,at:Date.now()});
