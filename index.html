@@ -676,11 +676,8 @@ const PRIO={1:'Высокий',2:'Средний',3:'Низкий'};
 function buildManage(){
   $('#tab-wi').innerHTML=`
   <div class="panel">
-    <h2>Потребности и цели</h2>
-    <div id="wSummary" class="small mute" style="margin-bottom:10px"></div>
-    <div class="seg" id="wFilter" style="margin-bottom:10px"></div>
-    <div id="mgWishes"></div>
-    <form class="add" id="wishForm">
+    <h2>Добавить потребность</h2>
+    <form class="add" id="wishForm" style="margin-top:0">
       <label class="f full">Что нужно<input type="text" id="wfName" required maxlength="60"></label>
       <label class="f">Стоимость, ₽<input type="number" id="wfSum" min="1" step="any" required></label>
       <label class="f">Приоритет<select id="wfPrio"><option value="1">Высокий</option><option value="2" selected>Средний</option><option value="3">Низкий</option></select></label>
@@ -688,6 +685,12 @@ function buildManage(){
       <label class="f">Крупная цель<select id="wfBig"><option value="">Нет</option><option value="1">Да</option></select></label>
       <button class="btn pri full" type="submit"${dis()}>Добавить</button>
     </form>
+  </div>
+  <div class="panel">
+    <h2>Потребности и цели</h2>
+    <div id="wSummary" class="small mute" style="margin-bottom:10px"></div>
+    <div class="seg" id="wFilter" style="margin-bottom:10px"></div>
+    <div id="mgWishes"></div>
   </div>
 `;
   $('#tab-mg').innerHTML=`
