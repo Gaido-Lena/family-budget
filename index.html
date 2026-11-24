@@ -173,11 +173,13 @@ details[open]>summary::after{content:"Свернуть"}
   <button role="tab" data-tab="ov" aria-selected="true">Сводка</button>
   <button role="tab" data-tab="w" aria-selected="false">Лена</button>
   <button role="tab" data-tab="h" aria-selected="false">Арс</button>
+  <button role="tab" data-tab="wi" aria-selected="false">Потребности</button>
   <button role="tab" data-tab="mg" aria-selected="false">Управление</button>
 </nav>
 <section class="tab on" id="tab-ov"></section>
 <section class="tab" id="tab-w"></section>
 <section class="tab" id="tab-h"></section>
+<section class="tab" id="tab-wi"></section>
 <section class="tab" id="tab-mg"></section>
 </div>
 
@@ -672,6 +674,22 @@ function renderPerson(k){
 const PERL={s:'с зарплаты',a:'с аванса',sa:'пополам: аванс и зарплата'};
 const PRIO={1:'Высокий',2:'Средний',3:'Низкий'};
 function buildManage(){
+  $('#tab-wi').innerHTML=`
+  <div class="panel">
+    <h2>Потребности и цели</h2>
+    <div id="wSummary" class="small mute" style="margin-bottom:10px"></div>
+    <div class="seg" id="wFilter" style="margin-bottom:10px"></div>
+    <div id="mgWishes"></div>
+    <form class="add" id="wishForm">
+      <label class="f full">Что нужно<input type="text" id="wfName" required maxlength="60"></label>
+      <label class="f">Стоимость, ₽<input type="number" id="wfSum" min="1" step="any" required></label>
+      <label class="f">Приоритет<select id="wfPrio"><option value="1">Высокий</option><option value="2" selected>Средний</option><option value="3">Низкий</option></select></label>
+      <label class="f">К какой дате<input type="date" id="wfDue"></label>
+      <label class="f">Крупная цель<select id="wfBig"><option value="">Нет</option><option value="1">Да</option></select></label>
+      <button class="btn pri full" type="submit"${dis()}>Добавить</button>
+    </form>
+  </div>
+`;
   $('#tab-mg').innerHTML=`
   <datalist id="catList">${CATS.map(c=>`<option value="${c}">`).join('')}</datalist>
   <div class="panel">
@@ -692,20 +710,6 @@ function buildManage(){
         <button class="btn ghost" type="button" id="bfCancel">Очистить форму</button>
       </form>
     </div></details>
-  </div>
-  <div class="panel">
-    <h2>Потребности и цели</h2>
-    <div id="wSummary" class="small mute" style="margin-bottom:10px"></div>
-    <div class="seg" id="wFilter" style="margin-bottom:10px"></div>
-    <div id="mgWishes"></div>
-    <form class="add" id="wishForm">
-      <label class="f full">Что нужно<input type="text" id="wfName" required maxlength="60"></label>
-      <label class="f">Стоимость, ₽<input type="number" id="wfSum" min="1" step="any" required></label>
-      <label class="f">Приоритет<select id="wfPrio"><option value="1">Высокий</option><option value="2" selected>Средний</option><option value="3">Низкий</option></select></label>
-      <label class="f">К какой дате<input type="date" id="wfDue"></label>
-      <label class="f">Крупная цель<select id="wfBig"><option value="">Нет</option><option value="1">Да</option></select></label>
-      <button class="btn pri full" type="submit"${dis()}>Добавить</button>
-    </form>
   </div>
   <div class="panel">
     <h2>Выплаты</h2>
@@ -848,7 +852,7 @@ function showTab(t){
   document.querySelectorAll('nav button').forEach(b=>b.setAttribute('aria-selected',String(b.dataset.tab===t)));
   document.querySelectorAll('section.tab').forEach(s=>s.classList.toggle('on',s.id==='tab-'+t));
 }
-const TABS=['ov','w','h','mg'];
+const TABS=['ov','w','h','wi','mg'];
 function arm(btn,label){
   if(btn.dataset.armed){return true}
   btn.dataset.armed='1';const old=btn.textContent;btn.textContent=label||'Точно удалить?';
