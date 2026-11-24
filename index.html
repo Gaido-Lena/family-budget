@@ -580,14 +580,14 @@ function buildPerson(k){
   <div class="panel"><h2>Обязательные платежи цикла</h2><div class="pBills"></div></div>
   <div class="panel">
     <h2>Прочие расходы</h2>
-    <div class="pSpend"></div>
-    <form class="add spendForm" data-who="${k}">
+    <form class="add spendForm" data-who="${k}" style="margin:0 0 14px">
       <label class="f">Дата<input type="date" class="sDate" required></label>
       <label class="f">Категория<select class="sCat" required>${CATS.map(c=>`<option>${c}</option>`).join('')}</select></label>
       <label class="f">Описание<input type="text" class="sName" maxlength="60" placeholder="Что купили"></label>
       <label class="f">Сумма, ₽<input type="number" class="sSum" min="0.01" step="any" required></label>
       <button class="btn pri full" type="submit"${dis()}>+ Добавить расход</button>
     </form>
+    <div class="pSpend"></div>
   </div>`;
 }
 function fillTargets(root){
