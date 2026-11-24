@@ -835,7 +835,7 @@ function renderWishes(){
     return `<div class="row" style="display:block;${bought?'opacity:.6':''}">
       <div style="display:flex;justify-content:space-between;gap:12px;align-items:baseline"><b>${esc(w.name)}</b><span class="num" style="font-weight:500">${fmt(w.sum)}</span></div>
       <div class="small mute">${PRIO[w.prio||2]} приоритет${w.due?' · к '+w.due.split('-').reverse().join('.'):''}${w.big?' · крупная цель':''}</div>
-      ${!bought?`<div class="small" style="margin-top:6px"><span class="chip ${f>=w.sum?'ok':f>0?'warn':'mute'}">Отложено ${fmt(f)} из ${fmt(w.sum)}</span></div><div class="meter${f>=w.sum?'':f>0?' warn':''}" role="img" aria-label="Отложено ${Math.round(pct)}%"><i style="width:${pct}%"></i></div><form class="wsf" data-id="${id}" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center"><input type="number" class="wAmt" step="any" placeholder="Сколько отложили, ₽" style="width:160px" required${dis()}><button class="btn" type="submit"${dis()}>Отложить</button>${(+w.saved||0)>0?`<button class="btn ghost" type="button" data-wish-reset="${id}"${dis()}>Сбросить</button>`:''}</form>`:''}
+      ${!bought?`<div class="small" style="margin-top:6px"><span class="chip ${f>=w.sum?'ok':f>0?'warn':'mute'}">Отложено ${fmt(f)} из ${fmt(w.sum)}</span></div><div class="meter${f>=w.sum?'':f>0?' warn':''}" role="img" aria-label="Отложено ${Math.round(pct)}%"><i style="width:${pct}%"></i></div><form class="wsf" data-id="${id}" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center"><input type="number" class="wAmt" step="any" placeholder="Сколько отложили, ₽" style="width:160px" required${dis()}><select class="wFrom" aria-label="Списать с карты" style="max-width:190px"><option value="">Не списывать с остатка</option><option value="w">Списать с карты Лены</option><option value="h">Списать с карты Арса</option></select><button class="btn" type="submit"${dis()}>Отложить</button>${(+w.saved||0)>0?`<button class="btn ghost" type="button" data-wish-reset="${id}"${dis()}>Сбросить</button>`:''}</form>`:''}
       <div class="actions">${bought?`<span class="chip mute">Куплено</span><button class="btn ghost" data-wish-back="${id}"${dis()}>Вернуть</button>`:`<button class="btn" data-wish-buy="${id}"${dis()}>Куплено</button>`}<button class="btn ghost" data-del-wish="${id}"${dis()}>Убрать</button></div></div>`}).join('')||'<div class="empty">Здесь пусто. Внесите то, что скоро понадобится: наполнитель, порошок, годовой интернет.</div>';
 }
 
@@ -959,6 +959,8 @@ document.addEventListener('submit',e=>{
     f.querySelector('.sSum').value='';f.querySelector('.sName').value='';
   }else if(f.classList.contains('wsf')){
     const id=f.dataset.id,w=S.wishes[id],v=+f.querySelector('.wAmt').value;if(!w||!v)return;
+    const fr=f.querySelector('.wFrom').value;
+    if(fr&&v>0)put('spend',newId(),{ym:todayIso.slice(0,7),who:fr,date:todayIso,cat:'Прочее',name:'Отложено: '+w.name,sum:v,wish:id,at:Date.now()});
     const w2=cl(w);w2.saved=Math.max(0,(+w2.saved||0)+v);put('wishes',id,w2);
   }else if(f.classList.contains('jobForm')){
     const nm=f.querySelector('.jName').value.trim();if(!nm)return;
